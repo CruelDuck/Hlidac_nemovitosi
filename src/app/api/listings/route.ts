@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { fetchListings } from '@/src/lib/db'
+import { fetchListings } from '@/lib/db'
+
 
 export const dynamic = 'force-dynamic'
 
