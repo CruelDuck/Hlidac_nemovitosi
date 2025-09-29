@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { ensureSchema, upsertListings } from '@/src/lib/db'
-import { fetchSrealityListings, fetchBezrealitkyListings } from '@/src/lib/normalize'
+import { ensureSchema, upsertListings } from '@/lib/db'
+import { fetchSrealityListings, fetchBezrealitkyListings } from '@/lib/normalize'
 
 export const dynamic = 'force-dynamic'
 
