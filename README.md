@@ -1,1 +1,1 @@
-# Hlidac_nemovitosi
+# Realitní hlídač – Next.js + Vercel\n\nMVP sledování inzerátů ze Sreality a Bezrealitky bez headless prohlížeče.\n\n## Lokální vývoj\n\n```bash\npnpm i   # nebo npm i / yarn\npnpm dev\n```\n\n## Deploy na Vercel\n\n1) Import repozitáře na Vercel.\n2) Přidej **Vercel Postgres** (Storage) – nastaví `DATABASE_URL`.\n3) Otevři `/api/scrape` (první inicializace + zápis).\n4) Na `/` uvidíš karty.\n5) Cron `*/5` v `.vercel/cron.json`.\n\n> Upozornění: respektuj podmínky zdrojových webů. Kód je demonstrační MVP.\n
