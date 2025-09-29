@@ -1,4 +1,4 @@
-import type { Listing } from './types'
+import type { Listing } from '@/lib/types'
 import * as cheerio from 'cheerio'
 
 function env(name: string, fallback: string) {
