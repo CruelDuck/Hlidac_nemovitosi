@@ -12,7 +12,11 @@ export type DbListing = {
 }
 
 const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL
-export const pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false } })
+
+export const pool = new Pool({
+  connectionString,
+  ssl: { rejectUnauthorized: false }
+})
 
 export async function ensureSchema() {
   await pool.query(`
@@ -31,8 +35,9 @@ export async function ensureSchema() {
   `)
 }
 
-// ⬇️ nově vrací pole čerstvě vložených řádků (min. data)
-export async function upsertListingsReturnNew(items: Omit<DbListing, 'id' | 'first_seen'>[]) {
+export async function upsertListingsReturnNew(
+  items: Omit<DbListing, 'id' | 'first_seen'>[]
+) {
   const inserted: Pick<DbListing, 'source' | 'title' | 'price' | 'location' | 'image_url' | 'url'>[] = []
   for (const it of items) {
     try {
@@ -49,12 +54,17 @@ export async function upsertListingsReturnNew(items: Omit<DbListing, 'id' | 'fir
   return inserted
 }
 
-export async function fetchListings(opts: { source?: string; q?: string; limit?: number } = {}) {
+export async function fetchListings(
+  opts: { source?: string; q?: string; limit?: number } = {}
+) {
   const { source, q, limit = 200 } = opts
   const clauses: string[] = []
   const params: any[] = []
   if (source) clauses.push(`source = $${params.push(source)}`)
-  if (q) clauses.push(`(LOWER(title) LIKE $${params.push('%'+q.toLowerCase()+'%')} OR LOWER(location) LIKE $${params.push('%'+q.toLowerCase()+'%')})`)
+  if (q) clauses.push(
+    `(LOWER(title) LIKE $${params.push('%' + q.toLowerCase() + '%')}
+     OR LOWER(location) LIKE $${params.push('%' + q.toLowerCase() + '%')})`
+  )
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
   const { rows } = await pool.query<DbListing>(
     `SELECT id, source, title, price, location, image_url, url,
@@ -66,5 +76,3 @@ export async function fetchListings(opts: { source?: string; q?: string; limit?:
   )
   return rows
 }
-
-export { pool }
