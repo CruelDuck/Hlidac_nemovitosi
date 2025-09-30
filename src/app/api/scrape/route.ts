@@ -1,3 +1,4 @@
+// src/app/api/scrape/route.ts
 import { NextResponse } from 'next/server'
 import { ensureSchema, upsertListings } from '@/lib/db'
 import { fetchSrealityListings, fetchBezrealitkyListings } from '@/lib/normalize'
@@ -17,7 +18,7 @@ export async function GET() {
 
   await ensureSchema()
 
-  // Získej obě sady paralelně; když jeden fetch selže, vrať prázdné pole stejného typu
+  // Oba zdroje paralelně; při chybě daného zdroje vrátíme prázdné pole
   const [sr, br]: [Listing[], Listing[]] = await Promise.all([
     fetchSrealityListings().catch(() => [] as Listing[]),
     fetchBezrealitkyListings().catch(() => [] as Listing[]),
