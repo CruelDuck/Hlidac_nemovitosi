@@ -11,16 +11,8 @@ export type DbListing = {
   first_seen: string
 }
 
-// Připojení přes Supabase (ideálně pooled URL s portem 6543)
 const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL
-if (!connectionString) {
-  console.warn('Missing SUPABASE_DB_URL (or DATABASE_URL)')
-}
-
-export const pool = new Pool({
-  connectionString,
-  ssl: { rejectUnauthorized: false } // Supabase obvykle vyžaduje SSL
-})
+export const pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false } })
 
 export async function ensureSchema() {
   await pool.query(`
@@ -39,18 +31,19 @@ export async function ensureSchema() {
   `)
 }
 
-export async function upsertListings(items: Omit<DbListing, 'id' | 'first_seen'>[]) {
-  if (!items.length) return 0
-  let inserted = 0
+// ⬇️ nově vrací pole čerstvě vložených řádků (min. data)
+export async function upsertListingsReturnNew(items: Omit<DbListing, 'id' | 'first_seen'>[]) {
+  const inserted: Pick<DbListing, 'source' | 'title' | 'price' | 'location' | 'image_url' | 'url'>[] = []
   for (const it of items) {
     try {
-      await pool.query(
+      const r = await pool.query(
         `INSERT INTO listings (source, title, price, location, image_url, url)
          VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (url) DO NOTHING;`,
+         ON CONFLICT (url) DO NOTHING
+         RETURNING source, title, price, location, image_url, url;`,
         [it.source, it.title, it.price, it.location, it.image_url, it.url]
       )
-      inserted++
+      if (r.rowCount && r.rows[0]) inserted.push(r.rows[0])
     } catch {}
   }
   return inserted
@@ -63,7 +56,6 @@ export async function fetchListings(opts: { source?: string; q?: string; limit?:
   if (source) clauses.push(`source = $${params.push(source)}`)
   if (q) clauses.push(`(LOWER(title) LIKE $${params.push('%'+q.toLowerCase()+'%')} OR LOWER(location) LIKE $${params.push('%'+q.toLowerCase()+'%')})`)
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
-
   const { rows } = await pool.query<DbListing>(
     `SELECT id, source, title, price, location, image_url, url,
             to_char(first_seen at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as first_seen
@@ -74,3 +66,5 @@ export async function fetchListings(opts: { source?: string; q?: string; limit?:
   )
   return rows
 }
+
+export { pool }
