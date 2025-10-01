@@ -1,3 +1,4 @@
+import ErrorBoundary from '@/components/ErrorBoundary'
 import ManualScraper from '@/components/ManualScraper'
 
 export default function HomePage() {
@@ -8,7 +9,9 @@ export default function HomePage() {
         <p className="text-gray-600 mb-6">
           Klikni na <b>Aktualizovat teď</b> pro ruční načtení nových inzerátů. Automat přidáme později.
         </p>
-        <ManualScraper />
+        <ErrorBoundary>
+          <ManualScraper />
+        </ErrorBoundary>
       </div>
     </main>
   )
