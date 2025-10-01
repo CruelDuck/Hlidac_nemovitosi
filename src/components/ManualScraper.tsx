@@ -22,6 +22,16 @@ type ScrapeResult = {
   db?: { bySource: { source: string; count: string }[]; total: string }
   errors?: { sreality: string | null; bezrealitky: string | null }
   took_ms?: number
+  reason?: string
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url, { cache: 'no-store' })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`GET ${url} failed: ${res.status} ${res.statusText} — ${text.slice(0, 300)}`)
+  }
+  return res.json()
 }
 
 export default function ManualScraper() {
@@ -33,12 +43,15 @@ export default function ManualScraper() {
 
   async function loadListings() {
     try {
-      const res = await fetch('/api/listings?limit=30', { cache: 'no-store' })
-      const data = await res.json()
-      setListings(data)
+      const data = await fetchJson<Listing[]>('/api/listings?limit=30')
+      // ochrana: některé API mohou vrátit objekt místo pole, ošetříme
+      setListings(Array.isArray(data) ? data : [])
       setLastUpdated(new Date().toISOString())
     } catch (e: any) {
       setError(String(e?.message || e))
+      // eslint-disable-next-line no-console
+      console.error('loadListings error', e)
+      setListings([])
     }
   }
 
@@ -50,13 +63,13 @@ export default function ManualScraper() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/scrape', { cache: 'no-store' })
-      const data: ScrapeResult = await res.json()
+      const data = await fetchJson<ScrapeResult>('/api/scrape')
       setResult(data)
-      // po dokončení sběru hned znovu načteme poslední inzeráty
       await loadListings()
     } catch (e: any) {
       setError(String(e?.message || e))
+      // eslint-disable-next-line no-console
+      console.error('handleScrape error', e)
     } finally {
       setLoading(false)
     }
@@ -96,20 +109,25 @@ export default function ManualScraper() {
             , vloženo nových: <b>{result.inserted ?? 0}</b>
             {typeof result.took_ms === 'number' && <> · {result.took_ms} ms</>}
           </div>
+          {result.reason && <div className="text-xs text-gray-500">Pozn.: {result.reason}</div>}
           {result.errors && (result.errors.sreality || result.errors.bezrealitky) && (
             <div className="text-xs text-gray-500">
               {result.errors.sreality && <>Sreality: {result.errors.sreality} · </>}
               {result.errors.bezrealitky && <>Bezrealitky: {result.errors.bezrealitky}</>}
             </div>
           )}
-          {result.newItems && result.newItems.length > 0 && (
+          {result.newItems && Array.isArray(result.newItems) && result.newItems.length > 0 && (
             <details className="text-sm">
               <summary className="cursor-pointer">Zobrazit nové položky ({result.newItems.length})</summary>
               <ul className="mt-2 list-disc pl-5 space-y-1">
                 {result.newItems.map((x, i) => (
-                  <li key={i}>
-                    <a href={x.url} target="_blank" className="underline">{x.title || x.url}</a>{' '}
-                    <span className="text-gray-500">[{x.source}] {x.price} {x.location && `· ${x.location}`}</span>
+                  <li key={`${x.url}-${i}`}>
+                    <a href={x.url} target="_blank" rel="noreferrer" className="underline">
+                      {x.title || x.url}
+                    </a>{' '}
+                    <span className="text-gray-500">
+                      [{x.source}] {x.price} {x.location && `· ${x.location}`}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -118,44 +136,46 @@ export default function ManualScraper() {
           {result?.db && (
             <div className="text-xs text-gray-500">
               V DB celkem: <b>{result.db.total}</b>{' '}
-              {result.db.bySource?.length > 0 && (
-                <>
-                  · {result.db.bySource.map((r) => `${r.source}: ${r.count}`).join(' · ')}
-                </>
-              )}
+              {result.db.bySource?.length > 0 && <>· {result.db.bySource.map((r) => `${r.source}: ${r.count}`).join(' · ')}</>}
             </div>
           )}
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {listings.map((l, idx) => (
-          <a
-            key={`${l.url}-${idx}`}
-            href={l.url}
-            target="_blank"
-            className="rounded-xl border p-3 hover:shadow transition bg-white"
-          >
-            {l.image_url ? (
-              <img
-                src={l.image_url}
-                alt={l.title}
-                className="w-full h-40 object-cover rounded-lg"
-                loading="lazy"
-              />
-            ) : (
-              <div className="w-full h-40 bg-gray-100 rounded-lg" />
-            )}
-            <div className="mt-3 space-y-1">
-              <div className="text-sm text-gray-500 uppercase">{l.source}</div>
-              <div className="font-semibold">{l.title || 'Bez názvu'}</div>
-              <div className="text-sm">{[l.price, l.location].filter(Boolean).join(' · ')}</div>
-              {l.first_seen && (
-                <div className="text-xs text-gray-500">První záznam: {new Date(l.first_seen).toLocaleString()}</div>
+        {(listings || []).map((l, idx) => {
+          const img = l?.image_url || ''
+          return (
+            <a
+              key={`${l?.url || 'no-url'}-${idx}`}
+              href={l?.url || '#'}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl border p-3 hover:shadow transition bg-white"
+            >
+              {img ? (
+                <img
+                  src={img}
+                  alt={l?.title || 'Inzerát'}
+                  className="w-full h-40 object-cover rounded-lg"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-full h-40 bg-gray-100 rounded-lg" />
               )}
-            </div>
-          </a>
-        ))}
+              <div className="mt-3 space-y-1">
+                <div className="text-sm text-gray-500 uppercase">{l?.source}</div>
+                <div className="font-semibold">{l?.title || 'Bez názvu'}</div>
+                <div className="text-sm">{[l?.price, l?.location].filter(Boolean).join(' · ')}</div>
+                {l?.first_seen && (
+                  <div className="text-xs text-gray-500">
+                    První záznam: {new Date(l.first_seen).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            </a>
+          )
+        })}
       </div>
     </div>
   )
