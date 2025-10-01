@@ -3,27 +3,30 @@ import { runApifyActor, mapToUnified } from '@/lib/apify'
 
 export const dynamic = 'force-dynamic'
 
-// Mapování "source" -> actorId (podle toho, co jsi poslal)
-const ACTOR_MAP: Record<string, string> = {
-  sreality: 'peTrGS4Exywwytc5V',     // sdano-sreality
-  bezrealitky: '50nuVLm1gX5ER9GGl',  // sdano-bezrealitky
-  ulovdomov: '3dfMzh0h3PIBcuPmj',    // sdano-ulovdomov
-  idnes: '0dCbYk6Qh3uqJBgOG',        // sdano-idnesreality
-}
+// pevně typované mapování → z něj si odvodíme typ klíče
+const ACTOR_MAP = {
+  sreality: 'peTrGS4Exywwytc5V',
+  bezrealitky: '50nuVLm1gX5ER9GGl',
+  ulovdomov: '3dfMzh0h3PIBcuPmj',
+  idnes: '0dCbYk6Qh3uqJBgOG',
+} as const
+
+type SourceKey = keyof typeof ACTOR_MAP
 
 export async function GET(_req: Request, ctx: { params: { source: string } }) {
-  const source = ctx.params.source
-  const actorId = ACTOR_MAP[source]
-  if (!actorId) {
-    return NextResponse.json({ ok: false, error: `Unknown source '${source}'` }, { status: 400 })
+  const raw = ctx.params.source
+  // ověř a zúžíme typ na povolené klíče
+  if (!Object.hasOwn(ACTOR_MAP, raw)) {
+    return NextResponse.json({ ok: false, error: `Unknown source '${raw}'` }, { status: 400 })
   }
+  const source = raw as SourceKey
+  const actorId = ACTOR_MAP[source]
 
   try {
-    // sem můžeš doplnit input filtrování; pro teď posíláme prázdný objekt
-    const items = await runApifyActor(actorId, {})
+    const items = await runApifyActor(actorId, {}, { memoryMB: 512, timeoutSec: 180, limitItems: 100 })
     const listings = items
-      .map((it) => mapToUnified(it, source))
-      .filter((x) => x.url)
+      .map(it => mapToUnified(it, source)) // teď je 'source' správně typovaný
+      .filter(x => x.url)
 
     return NextResponse.json({ ok: true, source, count: listings.length, listings })
   } catch (e: any) {
