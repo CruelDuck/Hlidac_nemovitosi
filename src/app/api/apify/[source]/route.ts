@@ -15,17 +15,20 @@ type SourceKey = keyof typeof ACTOR_MAP
 
 export async function GET(_req: Request, ctx: { params: { source: string } }) {
   const raw = ctx.params.source
-  // ověř a zúžíme typ na povolené klíče
-  if (!Object.hasOwn(ACTOR_MAP, raw)) {
+
+  // místo Object.hasOwn použijeme bezpečnou verzi:
+  const isKnown = Object.prototype.hasOwnProperty.call(ACTOR_MAP, raw)
+  if (!isKnown) {
     return NextResponse.json({ ok: false, error: `Unknown source '${raw}'` }, { status: 400 })
   }
+
   const source = raw as SourceKey
   const actorId = ACTOR_MAP[source]
 
   try {
     const items = await runApifyActor(actorId, {}, { memoryMB: 512, timeoutSec: 180, limitItems: 100 })
     const listings = items
-      .map(it => mapToUnified(it, source)) // teď je 'source' správně typovaný
+      .map(it => mapToUnified(it, source))
       .filter(x => x.url)
 
     return NextResponse.json({ ok: true, source, count: listings.length, listings })
