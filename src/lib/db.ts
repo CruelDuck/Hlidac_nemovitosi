@@ -34,7 +34,23 @@ export async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS listings_source_idx ON listings (source);
   `)
 }
+export async function fetchListingsPaged(opts: { limit: number; offset: number }) {
+  const { limit, offset } = opts
+  const { rows } = await pool.query(
+    `SELECT id, source, title, price, location, image_url, url,
+            to_char(first_seen at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as first_seen
+     FROM listings
+     ORDER BY first_seen DESC
+     LIMIT $1 OFFSET $2`,
+    [limit, offset]
+  )
+  return rows
+}
 
+export async function countListings() {
+  const { rows } = await pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM listings')
+  return Number(rows[0]?.count ?? 0)
+}
 export async function upsertListingsReturnNew(
   items: Omit<DbListing, 'id' | 'first_seen'>[]
 ) {
