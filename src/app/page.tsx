@@ -25,10 +25,21 @@ export default async function Page({ searchParams }: { searchParams?: { page?: s
   const currentPage = Math.max(1, Number(searchParams?.page ?? '1'))
   const offset = (currentPage - 1) * PER_PAGE
 
-  const [items, total] = await Promise.all([
-    fetchListingsPaged({ limit: PER_PAGE, offset }),
-    countListings(),
-  ])
+  let items: Listing[] = []
+  let total = 0
+  let errorMsg: string | null = null
+
+  try {
+    const [i, t] = await Promise.all([
+      fetchListingsPaged({ limit: PER_PAGE, offset }),
+      countListings(),
+    ])
+    items = i as any
+    total = t
+  } catch (e: any) {
+    errorMsg = String(e?.message || e)
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
 
   return (
@@ -38,7 +49,7 @@ export default async function Page({ searchParams }: { searchParams?: { page?: s
           <div>
             <h1 className="text-2xl font-bold">Hlídač realit</h1>
             <p className="text-gray-600">
-              {total} záznamů · stránka {currentPage}/{totalPages}
+              {total} záznamů · stránka {Math.max(1, Number(searchParams?.page ?? '1'))}/{totalPages}
             </p>
           </div>
           <Link
@@ -50,43 +61,57 @@ export default async function Page({ searchParams }: { searchParams?: { page?: s
           </Link>
         </header>
 
-        <Pagination currentPage={currentPage} totalPages={totalPages} />
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {items.map((l: Listing) => {
-            const offer = extractOffer(l.title || '')
-            const addr  = l.address || l.location || ''
-            return (
-              <Link
-                href={`/listing/${l.id}`}
-                key={l.id}
-                prefetch={false}
-                className="group bg-white rounded-2xl border shadow-sm hover:shadow-md transition overflow-hidden flex flex-col"
-              >
-                {l.image_url ? (
-                  <img
-                    src={l.image_url}
-                    alt={l.title}
-                    className="w-full h-48 object-cover"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="w-full h-48 bg-gray-100" />
-                )}
-                <div className="p-4">
-                  <div className="font-semibold">{offer}</div>
-                  <div className="text-sm text-gray-700 line-clamp-1">{addr}</div>
-                </div>
-              </Link>
-            )
-          })}
-        </div>
-
-        {items.length === 0 && (
-          <div className="text-gray-600">Zatím žádné záznamy. Klikni na „Načíst nové (uložit do DB)“.</div>
+        {errorMsg && (
+          <div className="rounded-xl border bg-red-50 p-4 text-red-800">
+            <div className="font-semibold">Chyba při načtení dat</div>
+            <div className="text-sm mt-1 break-all">{errorMsg}</div>
+            <div className="text-sm mt-2">
+              Zkus otevřít <a className="underline" href="/api/health">/api/health</a> pro diagnostiku.
+            </div>
+          </div>
         )}
 
-        <Pagination currentPage={currentPage} totalPages={totalPages} />
+        {!errorMsg && (
+          <>
+            <Pagination currentPage={currentPage} totalPages={totalPages} />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {items.map((l: Listing) => {
+                const offer = extractOffer(l.title || '')
+                const addr  = l.address || l.location || ''
+                return (
+                  <Link
+                    href={`/listing/${l.id}`}
+                    key={l.id}
+                    prefetch={false}
+                    className="group bg-white rounded-2xl border shadow-sm hover:shadow-md transition overflow-hidden flex flex-col"
+                  >
+                    {l.image_url ? (
+                      <img
+                        src={l.image_url}
+                        alt={l.title}
+                        className="w-full h-48 object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-48 bg-gray-100" />
+                    )}
+                    <div className="p-4">
+                      <div className="font-semibold">{offer}</div>
+                      <div className="text-sm text-gray-700 line-clamp-1">{addr}</div>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+
+            {items.length === 0 && (
+              <div className="text-gray-600">Zatím žádné záznamy. Klikni na „Načíst nové (uložit do DB)“.</div>
+            )}
+
+            <Pagination currentPage={currentPage} totalPages={totalPages} />
+          </>
+        )}
       </div>
     </main>
   )
