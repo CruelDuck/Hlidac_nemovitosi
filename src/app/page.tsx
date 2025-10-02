@@ -5,36 +5,30 @@ type Listing = {
   id: number
   source: 'sreality' | 'bezrealitky' | 'ulovdomov' | 'idnes'
   title: string
-  price: string
-  location: string
+  price_text: string | null
+  price_num: number | null
+  address: string | null
+  location: string | null
   image_url: string | null
   url: string
   first_seen: string
 }
 
-const LABEL: Record<Listing['source'], string> = {
-  sreality: 'Sreality',
-  bezrealitky: 'Bezrealitky',
-  ulovdomov: 'UlovDomov',
-  idnes: 'iDNES',
-}
-
 const PER_PAGE = 50
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams?: { page?: string }
-}) {
+function extractOffer(title: string) {
+  const m = title.match(/^(Prodej|Pronájem)\s+[^\d,]+/i)
+  return m ? m[0] : (title.split(',')[0] || title)
+}
+
+export default async function Page({ searchParams }: { searchParams?: { page?: string } }) {
   const currentPage = Math.max(1, Number(searchParams?.page ?? '1'))
   const offset = (currentPage - 1) * PER_PAGE
 
-  // čteme přímo z DB (rychlejší a bez klientských knihoven)
   const [items, total] = await Promise.all([
     fetchListingsPaged({ limit: PER_PAGE, offset }),
     countListings(),
   ])
-
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
 
   return (
@@ -42,8 +36,10 @@ export default async function Page({
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         <header className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Hlídač realit – výpis</h1>
-            <p className="text-gray-600">Zobrazuji {items.length} záznamů (stránka {currentPage} z {totalPages}).</p>
+            <h1 className="text-2xl font-bold">Hlídač realit</h1>
+            <p className="text-gray-600">
+              {total} záznamů · stránka {currentPage}/{totalPages}
+            </p>
           </div>
           <Link
             href="/api/apify/scrape-all"
@@ -54,50 +50,42 @@ export default async function Page({
           </Link>
         </header>
 
-        {/* PAGINACE NAHOŘE */}
         <Pagination currentPage={currentPage} totalPages={totalPages} />
 
-        {/* GRID KARET */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {items.map((l: Listing) => (
-            <a
-              key={l.id}
-              href={l.url}
-              target="_blank"
-              rel="noreferrer"
-              className="group bg-white rounded-2xl border shadow-sm hover:shadow-md transition overflow-hidden flex flex-col"
-            >
-              {l.image_url ? (
-                <img
-                  src={l.image_url}
-                  alt={l.title}
-                  className="w-full h-48 object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                <div className="w-full h-48 bg-gray-100" />
-              )}
-              <div className="p-4 flex-1 flex flex-col gap-2">
-                <div className="text-xs uppercase tracking-wide text-gray-500">
-                  <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100">
-                    {LABEL[l.source] || l.source}
-                  </span>
+          {items.map((l: Listing) => {
+            const offer = extractOffer(l.title || '')
+            const addr  = l.address || l.location || ''
+            return (
+              <Link
+                href={`/listing/${l.id}`}
+                key={l.id}
+                prefetch={false}
+                className="group bg-white rounded-2xl border shadow-sm hover:shadow-md transition overflow-hidden flex flex-col"
+              >
+                {l.image_url ? (
+                  <img
+                    src={l.image_url}
+                    alt={l.title}
+                    className="w-full h-48 object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-full h-48 bg-gray-100" />
+                )}
+                <div className="p-4">
+                  <div className="font-semibold">{offer}</div>
+                  <div className="text-sm text-gray-700 line-clamp-1">{addr}</div>
                 </div>
-                <div className="font-semibold leading-snug line-clamp-2">{l.title || 'Bez názvu'}</div>
-                <div className="text-sm text-gray-700">{[l.price, l.location].filter(Boolean).join(' · ')}</div>
-                <div className="mt-auto text-xs text-gray-500">
-                  První záznam: {new Date(l.first_seen).toLocaleString()}
-                </div>
-              </div>
-            </a>
-          ))}
+              </Link>
+            )
+          })}
         </div>
 
         {items.length === 0 && (
-          <div className="text-gray-600">Zatím žádné záznamy. Zkus kliknout na „Načíst nové (uložit do DB)“.</div>
+          <div className="text-gray-600">Zatím žádné záznamy. Klikni na „Načíst nové (uložit do DB)“.</div>
         )}
 
-        {/* PAGINACE DOLE */}
         <Pagination currentPage={currentPage} totalPages={totalPages} />
       </div>
     </main>
