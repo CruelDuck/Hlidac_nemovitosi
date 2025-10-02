@@ -1,42 +1,26 @@
 import { NextResponse } from 'next/server'
-import { pool } from '@/lib/db'
+import { ensureSchema, countListings, fetchListingsPaged } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-function redact(url?: string | null) {
-  if (!url) return null
-  try {
-    const u = new URL(url)
-    // zamlčíme heslo
-    return {
-      protocol: u.protocol,
-      hostname: u.hostname,
-      port: u.port,
-      pathname: u.pathname,
-      search: u.search,
-      hasPassword: !!u.password
-    }
-  } catch {
-    return { raw: url }
-  }
-}
-
 export async function GET() {
-  const envUrl = process.env.SUPABASE_DB_URL || null
   try {
-    const r = await pool.query('SELECT NOW() as now')
+    const conn = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL
+    if (!conn) {
+      return NextResponse.json({ ok: false, step: 'env', error: 'Missing SUPABASE_DB_URL or DATABASE_URL' }, { status: 500 })
+    }
+
+    await ensureSchema()
+    const total = await countListings()
+    const sample = await fetchListingsPaged({ limit: 3, offset: 0 })
+
     return NextResponse.json({
       ok: true,
-      db: 'connected',
-      now: r.rows[0].now,
-      using: redact(envUrl)
+      env: 'ok',
+      total,
+      sample: sample.map(s => ({ id: s.id, title: s.title, url: s.url })),
     })
   } catch (e: any) {
-    return NextResponse.json({
-      ok: false,
-      db: 'error',
-      error: String(e?.message || e),
-      using: redact(envUrl)
-    }, { status: 500 })
+    return NextResponse.json({ ok: false, step: 'runtime', error: String(e?.message || e) }, { status: 500 })
   }
 }
