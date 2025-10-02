@@ -1,13 +1,14 @@
 import './globals.css'
-import type { ReactNode } from 'react'
+import type { Metadata } from 'next'
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export const metadata: Metadata = {
+  title: 'Hlídač realit',
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="cs">
-      <body>
-        <header className="px-5 py-3 bg-black text-white font-semibold">Hlídač inzerátů – MVP (Vercel)</header>
-        <main className="max-w-5xl mx-auto p-4">{children}</main>
-      </body>
+      <body>{children}</body>
     </html>
   )
 }
